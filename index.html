@@ -1,15 +1,41 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/css/reset.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.css">
-    <script src="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.js"></script>
-  </head>
-  <body class="mixpanel-platform-body">
-    <h1>Hello, World!</h1>
-    <script>
-      // Run queries and display results here
-    </script>
-  </body>
-</html>
+var number_of_days = 7;
+
+var default_props = ["$city", "$region", "mp_country_code", "$brand", "$bluetooth_version", "$device", "$os", "$app_release", "$app_version", "$carrier", "$lib_version", "$wifi", "$screen_width", "$screen_height", "$model", "$os_version", "$manufacturer", "$screen_dpi", "$has_telephone", "has_nfc", "$bluetooth_enabled", "$browser", "$initial_referrer", "$initial_referring_domain", "$referrer", "$referring_domain", "$browser_version", "mp_keyword", "$search_engine", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "$radio", "mp_device_model", "$google_play_services", "mp_lib", "campaign_id", "message_id", "message_subtype", "message_type", "$answer_count", "survey_id", "collection_id", "$survey_shown", "$watch_model", "$ios_ifa", "$current_url", "$duration", "$from_binding", "$experiments", "$import", "distinct_id", "time", "$has_nfc"];
+
+var default_events = ['$campaign_delivery', '$campaign_marked_spam', '$campaign_bounced', '$campaign_open', '$experiment_started', '$show_survey'];
+
+function main() {
+  return Events({
+    from_date: new Date(_.now() - ((number_of_days - 1) * 24 * 60 * 60 * 1000)).toISOString().slice(0, -14),
+    to_date: new Date().toISOString().slice(0, -14)
+  })
+  .filter(event => !_.contains(default_events, event.name))
+  .map(event => ({
+    event_name: event.name,
+    properties: _.keys(_.omit(event.properties, default_props))
+  }))
+  .groupBy(['event_name'], function(accums, items) {
+    var result = {};
+    _.each(accums, function(accum) {
+      result.properties = result.properties || {};
+      _.each(_.keys(accum.properties), function(property) {
+        result.properties[property] = result.properties[property] + accum.properties[property] || accum.properties[property];
+      });
+      result.total = result.total + accum.total || accum.total;
+    });
+    _.each(items, function(item) {
+      result.properties = result.properties || {};
+      _.each(item.properties, function(property) {
+        result.properties[property] = result.properties[property] + 1 || 1;
+      });
+      result.total = result.total + 1 || 1;
+    });
+    return result;
+  })
+  .map(result => ({
+      event: result.key[0],
+      count: result.value.total,
+      properties: _.mapObject(result.value.properties,
+                  count => Math.round(1000 * count / result.value.total) / 10)
+  }));
+}
